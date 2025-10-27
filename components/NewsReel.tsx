@@ -10,42 +10,142 @@ interface NewsReelProps {
 
 export default function NewsReel({ articles }: NewsReelProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const startY = useRef(0);
 
-  // Simple touch handlers
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const startTranslate = useRef(0);
+
+  // Touch handlers for true finger following
   const handleTouchStart = (e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY;
+    const clientY = e.touches[0].clientY;
+    startY.current = clientY;
+    startTranslate.current = -currentIndex * window.innerHeight;
     setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+
+    const clientY = e.touches[0].clientY;
+    const deltaY = clientY - startY.current; // Fixed direction
+
+    // Calculate new translate position (follows finger exactly)
+    const newTranslate = startTranslate.current + deltaY;
+
+    // Limit dragging bounds
+    const maxTranslate = 0;
+    const minTranslate = -(articles.length - 1) * window.innerHeight;
+
+    if (newTranslate > maxTranslate) {
+      setTranslateY(maxTranslate);
+    } else if (newTranslate < minTranslate) {
+      setTranslateY(minTranslate);
+    } else {
+      setTranslateY(newTranslate);
+    }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isDragging) return;
 
-    const endY = e.changedTouches[0].clientY;
-    const diff = startY.current - endY;
-    const minSwipeDistance = 50;
-
-    if (Math.abs(diff) > minSwipeDistance) {
-      if (diff > 0 && currentIndex < articles.length - 1) {
-        // Swiped up - next article
-        setCurrentIndex((prev) => prev + 1);
-      } else if (diff < 0 && currentIndex > 0) {
-        // Swiped down - previous article
-        setCurrentIndex((prev) => prev - 1);
-      }
-    }
-
     setIsDragging(false);
+
+    const clientY = e.changedTouches[0].clientY;
+    const deltaY = clientY - startY.current; // Fixed direction
+    const deltaPercent = Math.abs(deltaY) / window.innerHeight;
+
+    // Determine if we should snap to next/previous card
+    if (deltaPercent > 0.15) {
+      // 15% threshold
+      if (deltaY > 0 && currentIndex > 0) {
+        // Swiped DOWN - go to PREVIOUS
+        setCurrentIndex((prev) => prev - 1);
+        setTranslateY(-(currentIndex - 1) * window.innerHeight);
+      } else if (deltaY < 0 && currentIndex < articles.length - 1) {
+        // Swiped UP - go to NEXT
+        setCurrentIndex((prev) => prev + 1);
+        setTranslateY(-(currentIndex + 1) * window.innerHeight);
+      } else {
+        // Not enough swipe or at boundary - snap back
+        setTranslateY(-currentIndex * window.innerHeight);
+      }
+    } else {
+      // Not enough swipe distance - snap back to current
+      setTranslateY(-currentIndex * window.innerHeight);
+    }
   };
 
-  // Wheel scroll for desktop
-  const handleWheel = (e: React.WheelEvent) => {
-    if (Math.abs(e.deltaY) > 10) {
-      if (e.deltaY > 0 && currentIndex < articles.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-      } else if (e.deltaY < 0 && currentIndex > 0) {
+  // Mouse event handlers for desktop
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const clientY = e.clientY;
+    startY.current = clientY;
+    startTranslate.current = -currentIndex * window.innerHeight;
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+
+    const clientY = e.clientY;
+    const deltaY = clientY - startY.current;
+
+    const newTranslate = startTranslate.current + deltaY;
+    const maxTranslate = 0;
+    const minTranslate = -(articles.length - 1) * window.innerHeight;
+
+    if (newTranslate > maxTranslate) {
+      setTranslateY(maxTranslate);
+    } else if (newTranslate < minTranslate) {
+      setTranslateY(minTranslate);
+    } else {
+      setTranslateY(newTranslate);
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+
+    setIsDragging(false);
+
+    const clientY = e.clientY;
+    const deltaY = clientY - startY.current;
+    const deltaPercent = Math.abs(deltaY) / window.innerHeight;
+
+    if (deltaPercent > 0.15) {
+      if (deltaY > 0 && currentIndex > 0) {
         setCurrentIndex((prev) => prev - 1);
+        setTranslateY(-(currentIndex - 1) * window.innerHeight);
+      } else if (deltaY < 0 && currentIndex < articles.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+        setTranslateY(-(currentIndex + 1) * window.innerHeight);
+      } else {
+        setTranslateY(-currentIndex * window.innerHeight);
+      }
+    } else {
+      setTranslateY(-currentIndex * window.innerHeight);
+    }
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      setTranslateY(-currentIndex * window.innerHeight);
+    }
+  };
+
+  // Wheel scrolling for desktop
+  const handleWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) > 5) {
+      if (e.deltaY > 0 && currentIndex < articles.length - 1) {
+        // Wheel down - go to next
+        setCurrentIndex((prev) => prev + 1);
+        setTranslateY(-(currentIndex + 1) * window.innerHeight);
+      } else if (e.deltaY < 0 && currentIndex > 0) {
+        // Wheel up - go to previous
+        setCurrentIndex((prev) => prev - 1);
+        setTranslateY(-(currentIndex - 1) * window.innerHeight);
       }
     }
   };
@@ -60,15 +160,24 @@ export default function NewsReel({ articles }: NewsReelProps) {
 
   return (
     <div
-      className="h-screen w-full bg-black overflow-hidden relative"
+      ref={containerRef}
+      className="h-screen w-full bg-black overflow-hidden relative select-none touch-none"
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
       onWheel={handleWheel}
     >
-      {/* Articles container with simple transform */}
+      {/* Articles container - follows finger during drag, animates after */}
       <div
-        className="h-full transition-transform duration-300 ease-out"
-        style={{ transform: `translateY(-${currentIndex * 100}vh)` }}
+        className="h-full"
+        style={{
+          transform: `translateY(${translateY}px)`,
+          transition: isDragging ? "none" : "transform 0.3s ease-out",
+        }}
       >
         {articles.map((article, index) => (
           <div key={article.id || index} className="h-screen w-full">
@@ -77,14 +186,27 @@ export default function NewsReel({ articles }: NewsReelProps) {
         ))}
       </div>
 
-      {/* Simple navigation hints */}
-      <div className="absolute bottom-8 left-0 right-0 text-center">
+      {/* Navigation Hints */}
+      <div className="absolute bottom-8 left-0 right-0 text-center pointer-events-none">
         {currentIndex < articles.length - 1 && (
-          <div className="text-white text-sm opacity-70">
+          <div className="text-white text-sm opacity-70 bg-black bg-opacity-50 inline-block px-4 py-2 rounded-full">
             ↑ Swipe up for next
           </div>
         )}
+        {currentIndex === articles.length - 1 && (
+          <div className="text-white text-sm opacity-70 bg-black bg-opacity-50 inline-block px-4 py-2 rounded-full">
+            🎉 You're all caught up!
+          </div>
+        )}
       </div>
+
+      {currentIndex > 0 && (
+        <div className="absolute top-8 left-0 right-0 text-center pointer-events-none">
+          <div className="text-white text-sm opacity-70 bg-black bg-opacity-50 inline-block px-4 py-2 rounded-full">
+            ↓ Swipe down for previous
+          </div>
+        </div>
+      )}
     </div>
   );
 }
