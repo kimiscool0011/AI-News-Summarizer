@@ -1,6 +1,7 @@
 export class AISummarizer {
   private readonly HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-  private readonly HF_API_URL = "https://huggingface.co/nebiberke/news-sum-tr";
+  private readonly HF_API_URL =
+    "https://huggingface.co/facebook/bart-large-cnn";
 
   async summarizeText(text: string): Promise<string> {
     try {
