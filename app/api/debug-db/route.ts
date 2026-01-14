@@ -10,11 +10,6 @@ export async function GET() {
     const totalArticles = await Article.countDocuments();
     const latestArticle = await Article.findOne().sort({ createdAt: -1 });
 
-    // Get collection names safely
-    const db = Article.db;
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map((col) => col.name);
-
     return NextResponse.json({
       success: true,
       databaseInfo: {
@@ -26,7 +21,8 @@ export async function GET() {
               createdAt: latestArticle.createdAt,
             }
           : null,
-        collectionNames,
+        connected: true,
+        timestamp: new Date().toISOString(),
       },
     });
   } catch (error: any) {
