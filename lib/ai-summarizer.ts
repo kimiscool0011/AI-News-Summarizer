@@ -1,169 +1,72 @@
-export class AISummarizer {
-  private readonly HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
-  private readonly HF_API_URL =
-    "https://huggingface.co/facebook/bart-large-cnn";
+// lib/news-summarizer.ts
 
-  async summarizeText(text: string): Promise<string> {
-    try {
-      // Clean and prepare text for summarization
-      const cleanText = this.cleanTextForSummarization(text);
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-      if (!cleanText || cleanText.length < 50) {
-        return this.createSimpleSummary(text);
-      }
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not defined");
+}
 
-      const response = await fetch(
-        `${this.HF_API_URL}/facebook/bart-large-cnn`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.HF_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            inputs: cleanText,
-            parameters: {
-              max_length: 130, // Short summary length
-              min_length: 30, // Minimum summary length
-              do_sample: false, // Deterministic output
-            },
-          }),
-        }
-      );
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-      if (!response.ok) {
-        throw new Error(`Hugging Face API error: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      // Extract summary from response
-      return result[0]?.summary_text || this.createSimpleSummary(text);
-    } catch (error) {
-      console.error("Summarization API error:", error);
-      // Fallback to simple summary
-      return this.createSimpleSummary(text);
-    }
+export async function summarizeArticle(
+  text: string,
+  title?: string,
+): Promise<string> {
+  if (!text || text.length < 800) {
+    throw new Error("Text too short to summarize");
   }
 
-  async analyzeSentiment(
-    text: string
-  ): Promise<"positive" | "negative" | "neutral"> {
-    try {
-      const cleanText = this.cleanTextForSummarization(text);
+  // Keep input well within Gemini 1.0 Pro limits
+  const input = text.slice(0, 3000);
 
-      if (!cleanText || cleanText.length < 10) {
-        return this.basicSentimentAnalysis(text);
-      }
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash-lite",
+  });
 
-      const response = await fetch(
-        `${this.HF_API_URL}/cardiffnlp/twitter-roberta-base-sentiment-latest`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.HF_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            inputs: cleanText,
-          }),
-        }
-      );
+  const prompt = `
+You are a professional news editor.
 
-      if (response.ok) {
-        const result = await response.json();
+TASK:
+Write a 3–4 sentence abstract summary of the article below.
 
-        if (Array.isArray(result) && result[0]?.length > 0) {
-          // Find the highest confidence sentiment
-          const topSentiment = result[0].reduce((prev: any, current: any) =>
-            prev.score > current.score ? prev : current
-          );
+RULES:
+- Do NOT copy any sentence from the article
+- Do NOT paraphrase the opening paragraph
+- Write fully in your own words
+- Focus on key events and outcomes
+- Neutral, factual tone
 
-          return this.mapSentimentLabel(topSentiment.label);
-        }
-      }
+ARTICLE:
+${input}
+`;
 
-      // Fallback if API fails
-      return this.basicSentimentAnalysis(text);
-    } catch (error) {
-      console.error("Sentiment analysis error:", error);
-      return this.basicSentimentAnalysis(text);
-    }
+  const result = await model.generateContent(prompt);
+  const output = result.response.text();
+
+  const cleaned = clean(output);
+
+  // Reject extractive output
+  if (isExtractive(cleaned, text)) {
+    throw new Error("Extractive summary detected");
   }
 
-  private cleanTextForSummarization(text: string): string {
-    return text
-      .replace(/[^\w\s.,!?\-]/g, " ") // Remove special characters
-      .replace(/\s+/g, " ") // Replace multiple spaces
-      .substring(0, 1024) // Limit length for API
-      .trim();
-  }
+  return cleaned;
+}
 
-  private mapSentimentLabel(
-    hfLabel: string
-  ): "positive" | "negative" | "neutral" {
-    const labelMap: { [key: string]: "positive" | "negative" | "neutral" } = {
-      LABEL_0: "negative",
-      LABEL_1: "neutral",
-      LABEL_2: "positive",
-      negative: "negative",
-      neutral: "neutral",
-      positive: "positive",
-    };
+// ======================
+// HELPERS
+// ======================
+function clean(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-    return labelMap[hfLabel] || "neutral";
-  }
-
-  // Keep your fallback methods
-  private createSimpleSummary(text: string): string {
-    const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-    return sentences.slice(0, 2).join(". ") + ".";
-  }
-
-  private basicSentimentAnalysis(
-    text: string
-  ): "positive" | "negative" | "neutral" {
-    const positiveWords = [
-      "good",
-      "great",
-      "excellent",
-      "positive",
-      "happy",
-      "success",
-      "win",
-      "achievement",
-    ];
-    const negativeWords = [
-      "bad",
-      "terrible",
-      "negative",
-      "sad",
-      "failure",
-      "lose",
-      "death",
-      "crisis",
-    ];
-
-    const lowerText = text.toLowerCase();
-    let positiveCount = 0;
-    let negativeCount = 0;
-
-    positiveWords.forEach((word) => {
-      const regex = new RegExp(`\\b${word}\\b`, "gi");
-      positiveCount += (lowerText.match(regex) || []).length;
-    });
-
-    negativeWords.forEach((word) => {
-      const regex = new RegExp(`\\b${word}\\b`, "gi");
-      negativeCount += (lowerText.match(regex) || []).length;
-    });
-
-    if (positiveCount > negativeCount) return "positive";
-    if (negativeCount > positiveCount) return "negative";
-    return "neutral";
-  }
+function isExtractive(summary: string, source: string): boolean {
+  const sourceLower = source.toLowerCase();
+  return summary
+    .split(".")
+    .map((s) => s.trim())
+    .some((s) => s.length > 25 && sourceLower.includes(s.toLowerCase()));
 }

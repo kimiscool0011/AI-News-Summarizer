@@ -1,20 +1,26 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
-const ArticleSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  description: String,
-  content: String,
-  source: { type: String, required: true },
-  url: { type: String, required: true, unique: true },
-  publishedAt: Date,
+export interface IArticle extends Document {
+  title: string;
+  summary: string;
+  sentiment: string;
+  source: string;
+  url: string;
+  category: string;
+  publishedAt: Date;
+  createdAt: Date;
+}
+
+const ArticleSchema = new Schema<IArticle>({
+  title: String,
   summary: String,
-  sentiment: {
-    type: String,
-    enum: ['positive', 'negative', 'neutral'],
-    default: 'neutral'
-  },
+  sentiment: String,
+  source: String,
+  url: { type: String, unique: true },
   category: String,
-  createdAt: { type: Date, default: Date.now }
+  publishedAt: Date,
+  createdAt: { type: Date, default: Date.now },
 });
 
-export default mongoose.models.Article || mongoose.model('Article', ArticleSchema);
+export default mongoose.models.Article ||
+  mongoose.model<IArticle>("Article", ArticleSchema);

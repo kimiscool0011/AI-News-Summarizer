@@ -1,42 +1,39 @@
-import type { Metadata, Viewport } from 'next'
-import './globals.css'
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { button } from "framer-motion/client";
 
 export const viewport: Viewport = {
-  themeColor: '#000000',
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',
-}
+  viewportFit: "cover",
+  themeColor: "#000000",
+};
 
 export const metadata: Metadata = {
-  title: 'Nagaland News Reels',
-  description: 'AI-powered Nagaland news in TikTok-style reels format',
-  manifest: '/manifest.json',
+  title: "Nagaland News Reels",
+  description: "AI-powered Nagaland news in TikTok-style reels format",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'NewsReels',
+    statusBarStyle: "black-translucent",
+    title: "NewsReels",
   },
-}
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/icon-192x192.png",
+  },
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en" className="h-full">
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-      </head>
-      <body className="bg-black mobile-fullscreen">
-        {children}
-      </body>
+      <body className="h-full bg-black overscroll-none">{children}</body>
     </html>
-  )
+  );
 }

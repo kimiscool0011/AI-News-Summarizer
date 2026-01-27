@@ -1,57 +1,49 @@
-import { RSSScraper } from './rss-scraper';
-import { AISummarizer } from './ai-summarizer';
-import { connectDB } from './mongodb';
-import Article from '../models/Article';
+import { RSSScraper } from "./rss-scraper";
+import { summarizeArticle } from "./ai-summarizer";
+import { connectDB } from "./mongodb";
+import Article from "../models/Article";
+
+const MAX_ARTICLES_PER_RUN = 10; // Vercel-safe limit
 
 export class NewsScheduler {
-  private scraper: RSSScraper;
-  private summarizer: AISummarizer;
+  private scraper = new RSSScraper();
 
-  constructor() {
-    this.scraper = new RSSScraper();
-    this.summarizer = new AISummarizer();
-  }
+  async fetchAndProcessNews(): Promise<number> {
+    await connectDB();
 
-  async fetchAndProcessNews() {
-    try {
-      console.log('🔄 Auto-fetching latest news...');
-      await connectDB();
-      
-      const articles = await this.scraper.fetchAllFeeds();
-      console.log(`📰 Fetched ${articles.length} raw articles`);
-      
-      let processedCount = 0;
-      
-      for (const article of articles) {
-        // Check if article already exists
-        const existing = await Article.findOne({ url: article.url });
-        
-        if (!existing) {
-          // Process new article
-          const summary = await this.summarizer.summarizeText(
-            article.content || article.description || ''
-          );
-          const sentiment = await this.summarizer.analyzeSentiment(
-            article.content || article.description || ''
-          );
-          
-          await Article.create({
-            ...article,
-            summary,
-            sentiment
-          });
-          
-          processedCount++;
-          console.log(`✅ Processed new article: ${article.title}`);
-        }
-      }
-      
-      console.log(`🎯 Added ${processedCount} new articles`);
-      return processedCount;
-      
-    } catch (error) {
-      console.error('❌ Scheduler error:', error);
-      return 0;
+    console.log("🔄 Fetching RSS feeds...");
+    const scraped = await this.scraper.fetchAllFeeds();
+
+    console.log(`📰 Scraped ${scraped.length} articles`);
+
+    let added = 0;
+
+    for (const article of scraped) {
+      if (added >= MAX_ARTICLES_PER_RUN) break;
+
+      const exists = await Article.exists({ url: article.url });
+      if (exists) continue;
+
+      if (!article.text || article.text.length < 800) continue;
+
+      console.log(`🧠 Summarizing: ${article.title}`);
+
+      const summary = await summarizeArticle(article.text);
+
+      await Article.create({
+        title: article.title,
+        content: article.text,
+        summary,
+        source: article.source,
+        url: article.url,
+        publishedAt: article.publishedAt,
+        category: article.category,
+      });
+
+      added++;
     }
+
+    console.log(`✅ Added ${added} new articles`);
+    return added;
   }
 }

@@ -5,19 +5,28 @@ import NewsReel from "./NewsReel";
 import PWAInstallPrompt from "./PWAInstallPrompt";
 
 export default function NewsPage() {
-  const [articles, setArticles] = useState([]);
+  const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchArticles = async () => {
       try {
         const res = await fetch("/api/articles");
-        if (res.ok) {
-          const data = await res.json();
+        if (!res.ok) throw new Error("Failed to fetch");
+
+        const data = await res.json();
+
+        // ✅ NORMALIZE RESPONSE SHAPE
+        if (Array.isArray(data)) {
           setArticles(data);
+        } else if (Array.isArray(data.articles)) {
+          setArticles(data.articles);
+        } else {
+          setArticles([]);
         }
       } catch (error) {
         console.error("Error fetching articles:", error);
+        setArticles([]);
       } finally {
         setLoading(false);
       }
