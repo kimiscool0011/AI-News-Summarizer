@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { button } from "framer-motion/client";
 
 export const viewport: Viewport = {
   width: "device-width",
