@@ -3,7 +3,7 @@ import { summarizeArticle } from "./ai-summarizer";
 import { connectDB } from "./mongodb";
 import Article from "../models/Article";
 
-const MAX_ARTICLES_PER_RUN = 10; // Vercel-safe limit
+const MAX_ARTICLES_PER_RUN = 5; // Vercel-safe limit
 
 export class NewsScheduler {
   private scraper = new RSSScraper();
